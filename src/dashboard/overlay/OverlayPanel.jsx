@@ -1,4 +1,4 @@
-import { useState, useCallback, useSyncExternalStore } from 'react';
+import { useState, useEffect, useCallback, useSyncExternalStore } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useDashboard } from '../../contexts/DashboardContext';
 import { useCurrentEntity, useChildren, useTopBranch, useSearch, useAllEntities } from '../../hooks/useEntity';
@@ -14,14 +14,64 @@ function useIsMobile() { return useSyncExternalStore(subscribeMQ, getIsMobile); 
 const LEVEL_LABELS = { region: 'Regions', district: 'Districts', branch: 'Branches', agent: 'Agents' };
 const LEVEL_TAG = { region: 'Region', district: 'District', branch: 'Branch', agent: 'Agent' };
 
-function ChildListSection({ title, count, children }) {
-  return (
-    <div className={styles.section} data-open="true">
-      <div className={styles.sectionHeader}>
-        <span className={styles.sectionTitle}>{title}</span>
+function ChildListSection({ title, count, children, collapsible = false }) {
+  const [open, setOpen] = useState(!collapsible);
+
+  useEffect(() => {
+    if (!collapsible) setOpen(true);
+  }, [collapsible]);
+
+  const isOpen = !collapsible || open;
+
+  const header = (
+    <>
+      <span className={styles.sectionTitle}>{title}</span>
+      <div className={styles.sectionRight}>
         {count != null && <span className={styles.sectionCount}>{count}</span>}
+        {collapsible && (
+          <svg
+            aria-hidden="true"
+            className={styles.chevron}
+            data-expanded={open}
+            viewBox="0 0 12 12"
+            width="10"
+            height="10"
+            fill="none"
+          >
+            <path d="M3 4.5l3 3 3-3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        )}
       </div>
-      <div className={styles.sectionBody}>{children}</div>
+    </>
+  );
+
+  return (
+    <div className={styles.section} data-open={isOpen ? 'true' : 'false'}>
+      {collapsible ? (
+        <button
+          type="button"
+          className={styles.sectionHeader}
+          onClick={() => setOpen((o) => !o)}
+          aria-expanded={open}
+        >
+          {header}
+        </button>
+      ) : (
+        <div className={styles.sectionHeader}>{header}</div>
+      )}
+      <AnimatePresence initial={false}>
+        {isOpen && (
+          <motion.div
+            className={styles.sectionBody}
+            initial={collapsible ? { height: 0, opacity: 0 } : false}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.25, ease: EASE }}
+          >
+            {children}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -443,7 +493,12 @@ export default function OverlayPanel() {
 
           {/* Region/child list */}
           {children.length > 0 && nextLevel && (
-            <ChildListSection title={LEVEL_LABELS[nextLevel] || 'Items'} count={children.length} key={`children-${level}-${parentId}`}>
+            <ChildListSection
+              title={LEVEL_LABELS[nextLevel] || 'Items'}
+              count={children.length}
+              collapsible={isMobile}
+              key={`children-${level}-${parentId}`}
+            >
               <div className={styles.entityList}>
                 {children.map((child) => {
                   const isChildActive = child.active !== false;
